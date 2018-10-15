@@ -1,5 +1,7 @@
 package bg.znestorov.model;
 
+import bg.znestorov.exceptions.ComputersCountExceededException;
+import bg.znestorov.exceptions.ConnectionsCountExceededException;
 import bg.znestorov.exceptions.CycleTreeTopology;
 import bg.znestorov.exceptions.NotCorrectInputParamsException;
 import org.apache.commons.lang3.ArrayUtils;
@@ -17,9 +19,9 @@ public class NetworkConnections {
     private static final Integer COUNT_TEST_CASES = 10;
     private static final String TEST_CASE = "src/resources/tc%d.txt";
 
-    private static final String TABLE_LINE = "--------------------------------------------------------------------------";
-    private static final String TABLE_HEADER = "| Test Case | Node Count | Max Node Links | Result | Execution Time (ms) |";
-    private static final String TABLE_ROW = "|%-11s|%-12d|%-16d|%-8d|%-21d|";
+    private static final String TABLE_LINE = "------------------------------------------------------------------------------";
+    private static final String TABLE_HEADER = "| Test Case | Node Count | Max Node Links |   Result   | Execution Time (ms) |";
+    private static final String TABLE_ROW = "| %-9s | %-10d | %-14d | %-10d | %-19d |";
 
     public static void analyzeNetworkPerformanceTestCases() throws Exception {
 
@@ -48,7 +50,7 @@ public class NetworkConnections {
         printNetworkAnalyses(inputParams, network, timer);
     }
 
-    private static InputParams getInputParams(String filePath) throws NotCorrectInputParamsException, IOException {
+    private static InputParams getInputParams(String filePath) throws NotCorrectInputParamsException, IOException, ComputersCountExceededException {
 
         String[] params = new String(Files.readAllBytes(Paths.get(filePath))).trim().split(System.lineSeparator());
 
@@ -62,8 +64,13 @@ public class NetworkConnections {
             throw new NotCorrectInputParamsException("All input parameters should be numeric!");
         }
 
-        // Check the size of the input parameters (first element contains the number of computers)
+        // Check the connections count
         int connectionsCount = Integer.valueOf(params[0]) - 1;
+        if (connectionsCount < 0 || connectionsCount > 90000) {
+            throw new ComputersCountExceededException();
+        }
+
+        // Check the size of the input parameters (first element contains the number of computers)
         if (params.length != connectionsCount * 2 + 1) {
             throw new NotCorrectInputParamsException("The count of the input parameters is not correct!");
         }
@@ -112,21 +119,21 @@ public class NetworkConnections {
         }
     }
 
-    private static Set<Connection> getNetwork(Computer[] computers) throws CycleTreeTopology {
+    private static Set<Connection> getNetwork(Computer[] computers) throws CycleTreeTopology, ConnectionsCountExceededException {
 
-        Set<Connection> network = new LinkedHashSet<>();
+        Set<Connection> globalNetwork = new LinkedHashSet<>();
 
         // Iterate all computers and find their network connections
         if (!ArrayUtils.isEmpty(computers)) {
             for (Computer computer : computers) {
-                network.addAll(getNetwork(computer));
+                globalNetwork.addAll(getNetwork(computer));
             }
         }
 
-        return network;
+        return globalNetwork;
     }
 
-    private static Set<Connection> getNetwork(Computer computer) throws CycleTreeTopology {
+    private static Set<Connection> getNetwork(Computer computer) throws CycleTreeTopology, ConnectionsCountExceededException {
 
         // Check if the head node exists
         if (computer == null) {
@@ -136,11 +143,17 @@ public class NetworkConnections {
         return getNetwork(computer, computer, null, 0, new HashSet<>());
     }
 
-    private static Set<Connection> getNetwork(Computer root, Computer current, Computer parent, int distance, Set<Computer> visited) throws CycleTreeTopology {
+    private static Set<Connection> getNetwork(Computer root, Computer current, Computer parent, int distance, Set<Computer> visited)
+            throws CycleTreeTopology, ConnectionsCountExceededException {
 
         // In case the element has been already visited, the tree is a graph (there is a cycle inside)
         if (!visited.add(parent)) {
             throw new CycleTreeTopology(parent.toString());
+        }
+
+        // Check if the maximum number of connections is exceeded
+        if (distance > 1000) {
+            throw new ConnectionsCountExceededException();
         }
 
         Set<Connection> network = new LinkedHashSet<>();
@@ -191,8 +204,19 @@ public class NetworkConnections {
     }
 
     private static void printNetworkAnalyses(InputParams inputParams, Set<Connection> network, StopWatch timer) {
-        System.out.println(String.format(TABLE_ROW, inputParams.getName(), inputParams.getConnectionCount() + 1, inputParams.getConnectionCount(), network.size(),
+        System.out.println(String.format(TABLE_ROW,
+                inputParams.getName(),
+                inputParams.getConnectionCount() + 1,
+                getMaxNetworkConnections(network),
+                network.size(),
                 timer.getTime()));
+    }
+
+    private static Integer getMaxNetworkConnections(Set<Connection> network) {
+        return network.stream()
+                .mapToInt(Connection::getDistance)
+                .max()
+                .orElse(0);
     }
 
     @SuppressWarnings("unused")
