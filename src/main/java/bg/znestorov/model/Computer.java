@@ -1,11 +1,9 @@
 package bg.znestorov.model;
 
-import org.apache.commons.lang3.builder.EqualsBuilder;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 
 public class Computer {
 
@@ -41,16 +39,12 @@ public class Computer {
         }
 
         Computer computer = (Computer) o;
-        return new EqualsBuilder()
-                .append(id, computer.id)
-                .isEquals();
+        return Objects.equals(id, computer.id);
     }
 
     @Override
     public int hashCode() {
-        return new HashCodeBuilder(17, 37)
-                .append(id)
-                .toHashCode();
+        return Objects.hash(id);
     }
 
     @Override
